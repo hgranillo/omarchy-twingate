@@ -1,0 +1,17 @@
+/* Optional: toggle Twingate without an authentication prompt.
+ *
+ * Without this rule the widget still works: systemd asks polkit, Omarchy's
+ * polkit agent prompts once, and the grant is cached for the session because
+ * org.freedesktop.systemd1.manage-units is auth_admin_keep.
+ *
+ * Install:
+ *   sudo install -m 644 contrib/49-omarchy-twingate.rules /etc/polkit-1/rules.d/
+ * Then replace YOUR_USERNAME below.
+ */
+polkit.addRule(function (action, subject) {
+  if (action.id === "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") === "twingate.service" &&
+      subject.user === "YOUR_USERNAME") {
+    return polkit.Result.YES;
+  }
+});

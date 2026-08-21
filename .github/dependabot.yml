@@ -1,0 +1,17 @@
+# GitHub documents this path as .github/dependabot.yml only. It is deliberately
+# not .yaml like the workflows: an unread config fails silently.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+    groups:
+      actions:
+        patterns:
+          - "*"

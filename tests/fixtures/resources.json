@@ -1,0 +1,143 @@
+{
+  "admin_url": "https://acme.twingate.com",
+  "network_name": "Acme Corp",
+  "user": {
+    "email": "you@example.com",
+    "first_name": "Sam",
+    "last_name": "Rivera",
+    "id": "1",
+    "is_admin": true
+  },
+  "internet_security": {
+    "mode": 0,
+    "status": 1
+  },
+  "resources": [
+    {
+      "name": "prod-postgres",
+      "address": "postgres.prod.acme.example",
+      "auth_flow_id": "locked-rid:1001",
+      "auth_expires_at": 0,
+      "auth_state": "none",
+      "can_open_in_browser": false,
+      "client_visibility": 1,
+      "id": "1",
+      "global_id": "g1",
+      "open_url": "",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "prod-vault",
+      "address": "vault.prod.acme.example",
+      "auth_flow_id": "locked-rid:1002",
+      "auth_expires_at": 0,
+      "auth_state": "none",
+      "can_open_in_browser": true,
+      "client_visibility": 1,
+      "id": "2",
+      "global_id": "g2",
+      "open_url": "",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "grafana",
+      "address": "grafana.acme.example",
+      "auth_flow_id": "9000",
+      "auth_expires_at": 1800172800,
+      "auth_state": "none",
+      "can_open_in_browser": true,
+      "client_visibility": 1,
+      "id": "3",
+      "global_id": "g3",
+      "open_url": "https://grafana.acme.example",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "internal-wiki",
+      "address": "wiki.int.acme.example",
+      "auth_flow_id": "9000",
+      "auth_expires_at": 1800018000,
+      "auth_state": "none",
+      "can_open_in_browser": true,
+      "client_visibility": 1,
+      "id": "4",
+      "global_id": "g4",
+      "open_url": "",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "staging-services",
+      "address": "*.staging.acme.example",
+      "auth_flow_id": "9000",
+      "auth_expires_at": 1800086400,
+      "auth_state": "none",
+      "can_open_in_browser": true,
+      "client_visibility": 1,
+      "id": "5",
+      "global_id": "g5",
+      "open_url": "",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "legacy-jenkins",
+      "address": "jenkins.acme.example",
+      "auth_flow_id": "9000",
+      "auth_expires_at": 1799996400,
+      "auth_state": "none",
+      "can_open_in_browser": true,
+      "client_visibility": 1,
+      "id": "8",
+      "global_id": "g8",
+      "open_url": "",
+      "admin_url": "",
+      "type": "fqdn",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    },
+    {
+      "name": "office-printer",
+      "address": "10.0.0.9",
+      "auth_flow_id": "9000",
+      "auth_expires_at": 0,
+      "auth_state": "none",
+      "can_open_in_browser": false,
+      "client_visibility": 2,
+      "id": "9",
+      "global_id": "g9",
+      "open_url": "",
+      "admin_url": "",
+      "type": "ip",
+      "metadata": {
+        "gateway_id": "",
+        "resource_type": 1
+      }
+    }
+  ]
+}

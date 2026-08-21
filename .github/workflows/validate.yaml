@@ -1,0 +1,28 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --check Model.js
+      - run: node --test tests/*.test.js
+
+      - name: The install line points at this repository
+        run: |
+          expected="https://github.com/${{ github.repository }}.git"
+          if ! grep -qF "omarchy plugin add $expected" README.md; then
+            echo "README install line does not reference $expected" >&2
+            grep -n "omarchy plugin add" README.md >&2 || true
+            exit 1
+          fi

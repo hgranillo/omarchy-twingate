@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.hgranillo.twingate",
+  "name": "Twingate",
+  "version": "1.0.0",
+  "author": "Horacio Granillo",
+  "license": "MIT",
+  "description": "Twingate status, connect and disconnect, searchable resource list with copy and open-in-browser, per-resource authentication, exit node picker, and account switcher in the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Twingate",
+    "description": "Connect or disconnect Twingate, search resources, copy addresses, authenticate locked resources, and switch exit nodes or accounts.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "statusIntervalSec": 10,
+      "resourcesIntervalSec": 60,
+      "showHidden": false,
+      "notifications": true,
+      "maxResourceRows": 12,
+      "checkForUpdates": true
+    },
+    "schema": [
+      {
+        "key": "statusIntervalSec",
+        "type": "integer",
+        "label": "Status poll interval (seconds)",
+        "description": "How often to run twingate-notifier status. The daemon has been seen to stop answering under frequent polling, so keep this conservative.",
+        "min": 5,
+        "max": 600,
+        "step": 5,
+        "defaultValue": 10
+      },
+      {
+        "key": "resourcesIntervalSec",
+        "type": "integer",
+        "label": "Resource list interval (seconds)",
+        "description": "How often to re-read the full resource list. Auth countdowns update locally between polls.",
+        "min": 15,
+        "max": 3600,
+        "step": 15,
+        "defaultValue": 60
+      },
+      {
+        "key": "showHidden",
+        "type": "boolean",
+        "label": "Show hidden resources",
+        "description": "Include resources the client hides (client_visibility 2), matching twingate resources --all.",
+        "defaultValue": false
+      },
+      {
+        "key": "notifications",
+        "type": "boolean",
+        "label": "Notify on connection changes",
+        "description": "Send a desktop notification when Twingate goes online, offline, or the service stops.",
+        "defaultValue": true
+      },
+      {
+        "key": "maxResourceRows",
+        "type": "integer",
+        "label": "Resource rows shown",
+        "description": "Rows drawn before the list is clipped. Use the search box to reach the rest. 0 shows every resource.",
+        "min": 0,
+        "max": 200,
+        "step": 1,
+        "defaultValue": 12
+      },
+      {
+        "key": "checkForUpdates",
+        "type": "boolean",
+        "label": "Check for plugin updates",
+        "description": "Once a day, see whether this plugin's git checkout is behind its origin and offer to update it. Omarchy never pulls plugins on its own.",
+        "defaultValue": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the tag
+        run: echo "TAG=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - run: node --test tests/*.test.js
+
+      - name: Tag must match manifest.json
+        run: |
+          version=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("manifest.json","utf8")).version)')
+          if [ "$TAG" != "v$version" ]; then
+            echo "tag $TAG does not match manifest.json version $version" >&2
+            exit 1
+          fi
+
+      - name: Skip a release that already exists
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect the commits since the previous tag
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          previous=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            range="$previous..$TAG"
+            compare="**Full changelog**: ${{ github.server_url }}/${{ github.repository }}/compare/$previous...$TAG"
+          else
+            range="$TAG"
+            compare=""
+          fi
+          {
+            echo "NOTES<<EOF_NOTES"
+            git log --no-merges --pretty=format:'- %s' "$range" | grep -vE '^- (Release|Bump version)' || true
+            if [ -n "$compare" ]; then
+              printf '\n\n%s\n' "$compare"
+            fi
+            echo "EOF_NOTES"
+          } >> "$GITHUB_ENV"
+
+      - name: Create the release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" --title "$TAG" --notes "$NOTES"
