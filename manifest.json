@@ -24,7 +24,7 @@
       "showHidden": false,
       "notifications": true,
       "maxResourceRows": 12,
-      "checkForUpdates": true,
+      "checkForUpdates": false,
       "maxRecentResources": 5
     },
     "schema": [
@@ -76,8 +76,8 @@
         "key": "checkForUpdates",
         "type": "boolean",
         "label": "Check for plugin updates",
-        "description": "Once a day, see whether this plugin's git checkout is behind its origin and offer to update it. Omarchy never pulls plugins on its own.",
-        "defaultValue": true
+        "description": "Off by default. When on, checks once a day whether this plugin's checkout is behind its origin and offers an update in the panel. Reaches GitHub; nothing is downloaded or applied until you choose the row.",
+        "defaultValue": false
       },
       {
         "key": "maxRecentResources",

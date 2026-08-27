@@ -110,14 +110,16 @@ Panel {
     if (kind === "install") return "The twingate client is not on PATH. Opens Twingate's install guide for Arch."
     if (kind === "prompts") return "Twingate asks you to sign in through a desktop notification. That service is not running, so it cannot ask."
     if (kind === "setup") return "The client is installed but has no network configured."
-    return twingate.updateCount === 1 ? "1 new commit upstream" : twingate.updateCount + " new commits upstream"
+    var n = twingate.updateCount
+    return (n === 1 ? "1 new commit upstream." : n + " new commits upstream.")
+      + " Shows the diff first; restart the shell afterwards to load it."
   }
 
   function runNotice(kind) {
     if (kind === "install") twingate.openUrl(installDocsUrl)
     else if (kind === "prompts") twingate.enableAuthPrompts()
     else if (kind === "setup") present("sudo twingate setup")
-    else present("omarchy plugin update " + moduleName + " && omarchy-restart-shell")
+    else present("omarchy plugin update " + moduleName)
   }
 
   readonly property string heroDetail: {
@@ -447,9 +449,27 @@ Panel {
         }
       }
 
+      Text {
+        id: statusLine
+        visible: twingate.actionStatus !== "" || twingate.lastError !== ""
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        topPadding: Style.space(6)
+        textFormat: Text.PlainText
+        text: twingate.actionStatus !== "" ? twingate.actionStatus : twingate.lastError
+        color: twingate.lastError !== "" && twingate.actionStatus === "" ? root.urgent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
+      }
+
       Flickable {
         id: panelFlick
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: statusLine.visible ? statusLine.top : parent.bottom
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -509,25 +529,11 @@ Panel {
             }
           }
 
-          Text {
-
-            textFormat: Text.PlainText
-            visible: twingate.actionStatus !== "" || twingate.lastError !== ""
-            width: parent.width
-            text: twingate.actionStatus !== "" ? twingate.actionStatus : twingate.lastError
-            color: twingate.lastError !== "" && twingate.actionStatus === "" ? root.urgent : root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            wrapMode: Text.WordWrap
-          }
-
           Column {
-            visible: twingate.actionStatus === "" && twingate.lastError === ""
             width: parent.width
             spacing: Style.space(2)
 
             Text {
-
               textFormat: Text.PlainText
               visible: twingate.userEmail !== ""
               width: parent.width
@@ -539,7 +545,6 @@ Panel {
             }
 
             Text {
-
               textFormat: Text.PlainText
               visible: twingate.sessionExpiry !== ""
               width: parent.width
@@ -617,7 +622,6 @@ Panel {
             }
 
             Text {
-
               textFormat: Text.PlainText
               visible: root.authView.truncated
               width: parent.width
@@ -669,7 +673,6 @@ Panel {
             }
 
             Text {
-
               textFormat: Text.PlainText
               visible: root.resourceRows.length === 0
               width: parent.width
@@ -692,7 +695,6 @@ Panel {
             }
 
             Text {
-
               textFormat: Text.PlainText
               visible: root.resourceView.truncated
               width: parent.width
@@ -754,34 +756,53 @@ Panel {
             }
           }
 
-          Row {
+          Item {
             visible: twingate.notifierInstalled
             width: parent.width
-            spacing: Style.space(6)
+            implicitHeight: footerActions.implicitHeight
 
-            PanelActionButton {
-              iconText: "\u{F0450}"
-              tooltipText: "Refresh"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onClicked: twingate.refreshAll()
+            Row {
+              id: footerActions
+              anchors.left: parent.left
+              spacing: Style.space(6)
+
+              PanelActionButton {
+                iconText: "\u{F0450}"
+                tooltipText: "Refresh"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: twingate.refreshAll()
+              }
+
+              PanelActionButton {
+                visible: twingate.adminUrl !== "" && twingate.browserInstalled
+                iconText: "\u{F059F}"
+                tooltipText: "Open the Twingate admin console"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: twingate.openUrl(twingate.adminUrl)
+              }
+
+              PanelActionButton {
+                iconText: "\u{F06E}"
+                tooltipText: twingate.showHidden ? "Hide hidden resources" : "Show hidden resources"
+                foreground: twingate.showHidden ? root.foreground : root.dim
+                fontFamily: root.fontFamily
+                onClicked: root.toggleHidden()
+              }
             }
 
             PanelActionButton {
-              visible: twingate.adminUrl !== "" && twingate.browserInstalled
-              iconText: "\u{F059F}"
-              tooltipText: "Open the Twingate admin console"
-              foreground: root.foreground
+              anchors.right: parent.right
+              // Clear of the Flickable's scroll bar, which overlays this edge
+              // and would otherwise swallow the press.
+              anchors.rightMargin: Style.space(14)
+              anchors.verticalCenter: footerActions.verticalCenter
+              iconText: "\u{F06B0}"
+              tooltipText: "Check for updates"
+              foreground: root.dim
               fontFamily: root.fontFamily
-              onClicked: twingate.openUrl(twingate.adminUrl)
-            }
-
-            PanelActionButton {
-              iconText: "\u{F06E}"
-              tooltipText: twingate.showHidden ? "Hide hidden resources" : "Show hidden resources"
-              foreground: twingate.showHidden ? root.foreground : root.dim
-              fontFamily: root.fontFamily
-              onClicked: root.toggleHidden()
+              onClicked: twingate.checkUpdate(true)
             }
           }
         }
@@ -814,7 +835,6 @@ Panel {
       spacing: Style.space(8)
 
       Text {
-
         textFormat: Text.PlainText
         text: notice.glyph
         color: root.foreground
@@ -831,7 +851,6 @@ Panel {
         spacing: Style.space(1)
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: notice.label
@@ -842,7 +861,6 @@ Panel {
         }
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           visible: notice.detail !== ""
@@ -897,7 +915,6 @@ Panel {
       spacing: Style.space(8)
 
       Text {
-
         textFormat: Text.PlainText
         text: authRow.resource ? Model.resourceGlyph(authRow.resource) : ""
         color: authRow.resource && authRow.resource.expired ? root.urgent : root.foreground
@@ -922,7 +939,6 @@ Panel {
         spacing: Style.space(1)
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: authRow.resource ? authRow.resource.name : ""
@@ -933,7 +949,6 @@ Panel {
         }
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: authRow.resource
@@ -987,7 +1002,6 @@ Panel {
       spacing: Style.space(8)
 
       Text {
-
         textFormat: Text.PlainText
         id: resourceGlyph
         text: resourceRow.resource && resourceRow.resource.state !== "ok"
@@ -1007,7 +1021,6 @@ Panel {
         spacing: Style.space(1)
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: resourceRow.resource ? resourceRow.resource.name : ""
@@ -1018,7 +1031,6 @@ Panel {
         }
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: resourceRow.resource ? resourceRow.resource.address : ""
@@ -1105,7 +1117,6 @@ Panel {
       spacing: Style.space(8)
 
       Text {
-
         textFormat: Text.PlainText
         text: "\u{F11E2}"
         color: exitNodeRow.nodeActive ? root.foreground : root.dim
@@ -1125,7 +1136,6 @@ Panel {
       }
 
       Text {
-
         textFormat: Text.PlainText
         text: exitNodeRow.node ? String(exitNodeRow.node.name) : ""
         color: root.foreground
@@ -1178,7 +1188,6 @@ Panel {
       spacing: Style.space(8)
 
       Text {
-
         textFormat: Text.PlainText
         text: ""
         color: accountRow.currentAccount ? root.foreground : root.dim
@@ -1203,7 +1212,6 @@ Panel {
         spacing: Style.space(1)
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           text: accountRow.account ? String(accountRow.account.email) : ""
@@ -1215,7 +1223,6 @@ Panel {
         }
 
         Text {
-
           textFormat: Text.PlainText
           width: parent.width
           visible: accountRow.account && String(accountRow.account.network) !== ""

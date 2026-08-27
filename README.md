@@ -155,8 +155,12 @@ prompts is a user unit and runs directly.
 | Installed but no network configured | **Finish Twingate setup**, running `sudo twingate setup` |
 | The checkout is behind its origin | **Update this panel**, running `omarchy plugin update <id> && omarchy-restart-shell` |
 
-Omarchy never pulls plugin checkouts, so this one checks itself daily. Nothing is
-applied until you pick the row. Disable with `checkForUpdates`.
+Omarchy never pulls plugin checkouts, so this plugin can watch its own. That
+check is **off by default**: turn on `checkForUpdates` and it asks GitHub once a
+day whether the checkout is behind, and offers the row above when it is. It skips
+a checkout that is ahead, diverged, or symlinked into a working tree, and it never
+downloads or applies anything until you choose the row. The row shows the diff and
+asks before changing anything; restart the shell afterwards to load it.
 
 ### Data
 
@@ -193,7 +197,7 @@ Configure through _Setup > Plugins_, or inline on the widget's `shell.json` entr
 | `showHidden` | `false` | Include hidden resources, matching `twingate resources --all`. |
 | `notifications` | `true` | Notify on connection changes. |
 | `maxResourceRows` | `12` | Rows before a list clips. `0` draws every resource. |
-| `checkForUpdates` | `true` | Check daily whether the checkout is behind its origin. |
+| `checkForUpdates` | `false` | Check daily whether the checkout is behind its origin, and offer an update. Reaches GitHub. |
 | `maxRecentResources` | `5` | Names kept in `shell.json` for `RECENT`. `0` stores none. |
 
 ### IPC

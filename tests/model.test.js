@@ -276,3 +276,12 @@ test("plainText strips what Qt would treat as markup", () => {
   assert.equal(M.plainText(null), "")
   assert.equal(M.plainText(undefined), "")
 })
+
+test("parseUpdateCheck only reports a checkout that is strictly behind", () => {
+  assert.deepEqual(M.parseUpdateCheck("3 abc123"), { count: 3, rev: "abc123" })
+  assert.deepEqual(M.parseUpdateCheck("0"), { count: 0, rev: "" })
+  assert.deepEqual(M.parseUpdateCheck(""), { count: 0, rev: "" })
+  assert.deepEqual(M.parseUpdateCheck("dev"), { count: 0, rev: "" })
+  assert.deepEqual(M.parseUpdateCheck(null), { count: 0, rev: "" })
+  assert.deepEqual(M.parseUpdateCheck("  2   deadbeef  "), { count: 2, rev: "deadbeef" })
+})

@@ -48,6 +48,8 @@ Item {
   property string authenticating: ""
 
   property int updateCount: 0
+  property string updateRev: ""
+  property bool _updateManual: false
   property string actionStatus: ""
   property string lastError: ""
 
@@ -56,7 +58,7 @@ Item {
   readonly property bool showHidden: setting("showHidden", false) === true
   readonly property bool notifications: setting("notifications", true) === true
   readonly property int maxResourceRows: intSetting("maxResourceRows", 12, 0, 200)
-  readonly property bool checkForUpdates: setting("checkForUpdates", true) === true
+  readonly property bool checkForUpdates: setting("checkForUpdates", false) === true
 
   readonly property var _split: Model.partition(resources)
   readonly property var needsAuthResources: _split.needsAuth
@@ -89,6 +91,13 @@ Item {
     if (n < min) n = min
     if (n > max) n = max
     return n
+  }
+
+  // A result the user asked for is held longer than one that just happened.
+  function flash(message, ms) {
+    actionStatus = message
+    actionStatusTimer.interval = ms === undefined ? 2200 : ms
+    actionStatusTimer.restart()
   }
 
   function stamp() {
@@ -152,8 +161,7 @@ Item {
     if (target === "" || target.length > 256) return
     if (authenticating === target && authProcessPending()) return
     authenticating = target
-    actionStatus = "Continue in your browser…"
-    actionStatusTimer.restart()
+    flash("Continue in your browser…")
     enqueue("auth", target, true)
   }
 
@@ -258,13 +266,11 @@ Item {
     var text = String(value || "")
     if (text === "") return
     if (!clipboardInstalled) {
-      actionStatus = "wl-copy is not installed, so nothing was copied"
-      actionStatusTimer.restart()
+      flash("wl-copy is not installed, so nothing was copied")
       return
     }
     Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(text) + " | wl-copy"])
-    actionStatus = "Copied " + text
-    actionStatusTimer.restart()
+    flash("Copied " + text)
   }
 
   function openUrl(url) {
@@ -314,14 +320,30 @@ Item {
     authActionStderr.reset(); authActionProcess.running = true
   }
 
-  function checkUpdate() {
-    if (!checkForUpdates || pluginDir === "" || updateProcess.running) return
+  function checkUpdate(manual) {
+    if (pluginDir === "" || updateProcess.running) return
+    if (!checkForUpdates && manual !== true) return
+    _updateManual = manual === true
+    if (_updateManual) {
+      actionStatus = "Checking for updates…"
+      actionStatusTimer.stop()
+    }
+    updateStdout.reset()
     updateProcess.command = ["bash", "-lc",
-      "cd " + Util.shellQuote(pluginDir)
-      + " && git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1"
-      + " && timeout 20 git fetch -q"
-      + " && git rev-list --count HEAD..@{u} || echo 0"]
-    updateStdout.reset(); updateProcess.running = true
+      'd=' + Util.shellQuote(pluginDir) + '; '
+      // A symlinked directory is somebody's working checkout, and an update
+      // would fast-forward the repository they are editing.
+      + '[ -L "$d" ] && { echo 0; exit 0; }; '
+      + 'cd "$d" 2>/dev/null || { echo 0; exit 0; }; '
+      + 'git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1 || { echo 0; exit 0; }; '
+      + 'timeout 20 git fetch -q || { echo 0; exit 0; }; '
+      + 'ahead=$(git rev-list --count --left-only HEAD...@{u} 2>/dev/null || echo 0); '
+      + 'behind=$(git rev-list --count --right-only HEAD...@{u} 2>/dev/null || echo 0); '
+      // Ahead or diverged is not an update; without this a rewritten history
+      // reads the same as a new release.
+      + '[ "$ahead" -gt 0 ] && { echo 0; exit 0; }; '
+      + 'echo "$behind $(git rev-parse @{u})"']
+    updateProcess.running = true
   }
 
   function settle() {
@@ -414,8 +436,7 @@ Item {
       if (!controlProcess.running) return
       controlProcess.running = false
       root._desired = -1
-      root.actionStatus = "Authentication timed out"
-      actionStatusTimer.restart()
+      root.flash("Authentication timed out")
     }
   }
 
@@ -526,8 +547,7 @@ Item {
       } else if (kind === "auth") {
         if (exitCode !== 0) {
           root.lastError = (stderr.trim() || stdout.trim() || "Authentication failed").substring(0, 140)
-          root.actionStatus = root.lastError
-          actionStatusTimer.restart()
+          root.flash(root.lastError)
         }
         root.settle()
       }
@@ -581,8 +601,7 @@ Item {
         root._desired = -1
         desiredGuard.stop()
         root.lastError = (stderr.trim() || stdout.trim() || "Could not change the Twingate service").substring(0, 140)
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.flash(root.lastError)
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -637,11 +656,10 @@ Item {
       if (exitCode !== 0) {
         root.lastError = (String(authActionStderr.text || "").trim()
           || "Could not start Twingate notifications").substring(0, 140)
-        root.actionStatus = root.lastError
+        root.flash(root.lastError)
       } else {
-        root.actionStatus = "Twingate notifications running"
+        root.flash("Twingate notifications running")
       }
-      actionStatusTimer.restart()
       root.probeAuthPrompts()
     }
   }
@@ -652,8 +670,17 @@ Item {
     command: []
     stdout: CappedStdout { id: updateStdout; maxChars: 4 * 1024 }
     onExited: function(exitCode) {
-      var n = parseInt(String(updateStdout.text || "").trim(), 10)
-      root.updateCount = isFinite(n) && n > 0 ? n : 0
+      var seen = Model.parseUpdateCheck(updateStdout.text)
+      root.updateCount = seen.count
+      root.updateRev = seen.rev
+      if (root._updateManual) {
+        root._updateManual = false
+        // A click deserves an answer either way, and the notice it adds is at
+        // the top of the panel where the button that fired it cannot be seen.
+        root.flash(seen.count === 0 ? "Up to date"
+          : (seen.count === 1 ? "Update available: 1 commit behind"
+                              : "Update available: " + seen.count + " commits behind"), 5000)
+      }
     }
   }
 
@@ -668,8 +695,7 @@ Item {
       var stdout = String(cliActionStdout.text || "")
       if (exitCode !== 0) {
         root.lastError = (stderr.trim() || stdout.trim() || "Twingate command failed").substring(0, 140)
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.flash(root.lastError)
       }
       root.switchingExitNode = ""
       root.switchingAccount = ""

@@ -221,6 +221,15 @@ function plainText(value) {
     .replace(/[\u0000-\u001f\u007f]/g, " ")
 }
 
+// "<behind> <upstream sha>", or "0" when there is nothing to offer. A checkout
+// that is ahead or diverged reports 0: only strictly behind is an update.
+function parseUpdateCheck(raw) {
+  var parts = String(raw || "").trim().split(/\s+/)
+  var count = parseInt(parts[0], 10)
+  if (!isFinite(count) || count <= 0) return { count: 0, rev: "" }
+  return { count: count, rev: parts.length > 1 ? parts[1] : "" }
+}
+
 function resourceGlyph(resource) {
   if (resource.state === "pending") return "\u{F13AB}"
   if (resource.state === "locked") return "\u{F033E}"
@@ -382,7 +391,7 @@ if (typeof module !== "undefined") {
     parseStatus: parseStatus, isTransitional: isTransitional, statusLabel: statusLabel,
     isWebUrl: isWebUrl, isLocked: isLocked, humanize: humanize,
     parseResources: parseResources, decorate: decorate,
-    isHidden: isHidden, plainText: plainText,
+    isHidden: isHidden, plainText: plainText, parseUpdateCheck: parseUpdateCheck,
     resourceGlyph: resourceGlyph,
     partition: partition, filterResources: filterResources,
     recentResources: recentResources, pushRecent: pushRecent, excludeNames: excludeNames,
