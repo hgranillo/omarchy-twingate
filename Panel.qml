@@ -755,7 +755,7 @@ Panel {
             }
 
             PanelActionButton {
-              visible: twingate.adminUrl !== ""
+              visible: twingate.adminUrl !== "" && twingate.browserInstalled
               iconText: "\u{F059F}"
               tooltipText: "Open the Twingate admin console"
               foreground: root.foreground
@@ -1001,7 +1001,8 @@ Panel {
       PanelActionButton {
         id: openButton
         anchors.verticalCenter: parent.verticalCenter
-        readonly property bool available: resourceRow.resource ? resourceRow.resource.browsable === true : false
+        readonly property bool available: twingate.browserInstalled
+          && (resourceRow.resource ? resourceRow.resource.browsable === true : false)
         opacity: resourceRow.hot && available ? 1 : 0
         enabled: resourceRow.hot && available
         Behavior on opacity { NumberAnimation { duration: 110; easing.type: Easing.OutQuad } }

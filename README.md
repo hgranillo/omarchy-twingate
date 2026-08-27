@@ -29,8 +29,8 @@ Each tool gates one section. A partial install degrades; it does not fail.
 | `twingate-notifier` | Everything |
 | `systemctl` | The connect / disconnect switch, and the sign-in prompt check |
 | `twingate` | Exit nodes and accounts |
-| `wl-copy` | Copy actions |
-| `omarchy-launch-browser` | Open in browser |
+| `wl-copy` | Copy actions. Without it the panel refuses the copy and says so |
+| `omarchy-launch-browser` | Open in browser. Without it those actions are hidden |
 | `notify-send` | Connection-change notifications |
 | `git` | The update check |
 

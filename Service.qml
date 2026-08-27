@@ -14,6 +14,8 @@ Item {
   property bool notifierInstalled: false
   property bool cliInstalled: false
   property bool systemctlInstalled: false
+  property bool clipboardInstalled: false
+  property bool browserInstalled: false
   property bool probed: false
   // Session authentication is push-based: the daemon raises the request and this
   // user service turns it into the notification that opens the browser. With it
@@ -75,6 +77,7 @@ Item {
   property var _discoverQueue: []
   property string _discoverKind: ""
   property string _announced: ""
+  property int _authProbeTries: 0
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -96,7 +99,8 @@ Item {
 
   function probe() {
     if (capsProcess.running) return
-    capsProcess.command = ["which", "twingate-notifier", "twingate", "systemctl"]
+    capsProcess.command = ["which", "twingate-notifier", "twingate", "systemctl",
+                           "wl-copy", "omarchy-launch-browser"]
     capsProcess.running = true
   }
 
@@ -134,7 +138,7 @@ Item {
     notifierProcess.command = job.arg === "" ? ["twingate-notifier", job.kind]
                                              : ["twingate-notifier", job.kind, job.arg]
     notifierProcess.running = true
-    if (!pollWatchdog.running) pollWatchdog.start()
+    notifierWatchdog.restart()
   }
 
   function refreshStatus(force) { enqueue("status", "", force === true) }
@@ -168,7 +172,7 @@ Item {
       ? ["twingate", "exit-node", "list", "-d"]
       : ["twingate", "account", "list", "-d"]
     discoverProcess.running = true
-    if (!pollWatchdog.running) pollWatchdog.start()
+    discoverWatchdog.restart()
   }
 
   function discover() {
@@ -243,13 +247,18 @@ Item {
   function copyToClipboard(value) {
     var text = String(value || "")
     if (text === "") return
+    if (!clipboardInstalled) {
+      actionStatus = "wl-copy is not installed, so nothing was copied"
+      actionStatusTimer.restart()
+      return
+    }
     Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(text) + " | wl-copy"])
     actionStatus = "Copied " + text
     actionStatusTimer.restart()
   }
 
   function openUrl(url) {
-    if (!Model.isWebUrl(url)) return
+    if (!Model.isWebUrl(url) || !browserInstalled) return
     Quickshell.execDetached(["omarchy-launch-browser", String(url)])
   }
 
@@ -283,6 +292,7 @@ Item {
 
   function probeAuthPrompts() {
     if (!systemctlInstalled || authProbeProcess.running) return
+    _authProbeTries = 0
     authProbeProcess.command = ["systemctl", "--user", "is-active", "twingate-desktop-notifier"]
     authProbeProcess.running = true
   }
@@ -369,22 +379,22 @@ Item {
     }
   }
 
-  Timer {
-    // A poll is skipped while its own process still runs, so one that never
-    // exits stops the panel refreshing permanently. Armed on the launch that
-    // needs it and never restarted: restarting pushes the deadline out ahead of
-    // a hung process forever.
-    id: pollWatchdog
+  // A poll is skipped while its own process still runs, so one that never exits
+  // stops the panel refreshing permanently. One deadline per process, because a
+  // shared one either cancels a healthy launch that started near the old
+  // deadline, or gets pushed out ahead of a hung process forever.
+  component ReapTimer: Timer {
+    property var watched: null
     interval: 15000
     repeat: false
-    onTriggered: {
-      // Cancelling leaves the child alive, and a live twingate-notifier keeps
-      // holding the daemon socket that the next call needs.
-      if (notifierProcess.running) notifierProcess.running = false
-      if (discoverProcess.running) discoverProcess.running = false
-      if (unitProcess.running) unitProcess.running = false
-    }
+    // Cancelling leaves the child alive, and a live twingate-notifier keeps
+    // holding the daemon socket that the next call needs.
+    onTriggered: if (watched && watched.running) watched.running = false
   }
+
+  ReapTimer { id: notifierWatchdog; watched: notifierProcess }
+  ReapTimer { id: discoverWatchdog; watched: discoverProcess }
+  ReapTimer { id: unitWatchdog; watched: unitProcess }
 
   Timer {
     // The polkit dialog blocks until the user answers it.
@@ -426,6 +436,16 @@ Item {
   }
 
   Timer {
+    id: authProbeRetry
+    interval: 3000
+    repeat: false
+    onTriggered: if (!authProbeProcess.running) {
+      authProbeProcess.command = ["systemctl", "--user", "is-active", "twingate-desktop-notifier"]
+      authProbeProcess.running = true
+    }
+  }
+
+  Timer {
     id: actionStatusTimer
     interval: 2200
     repeat: false
@@ -441,10 +461,13 @@ Item {
     command: []
     stdout: StdioCollector { id: capsStdout; waitForEnd: true }
     onExited: function(exitCode) {
-      var caps = Model.parseWhich(capsStdout.text, ["twingate-notifier", "twingate", "systemctl"])
+      var caps = Model.parseWhich(capsStdout.text, ["twingate-notifier", "twingate", "systemctl",
+                                                   "wl-copy", "omarchy-launch-browser"])
       root.notifierInstalled = caps["twingate-notifier"]
       root.cliInstalled = caps["twingate"]
       root.systemctlInstalled = caps["systemctl"]
+      root.clipboardInstalled = caps["wl-copy"]
+      root.browserInstalled = caps["omarchy-launch-browser"]
       root.probed = true
       if (!root.notifierInstalled) {
         root.conn = Model.CONN_UNKNOWN
@@ -465,6 +488,7 @@ Item {
     stdout: CappedStdout { id: notifierStdout }
     stderr: StdioCollector { id: notifierStderr; waitForEnd: true }
     onExited: function(exitCode) {
+      notifierWatchdog.stop()
       var stdout = String(notifierStdout.text || "")
       var stderr = String(notifierStderr.text || "")
       var kind = root._kind
@@ -485,6 +509,7 @@ Item {
           if (root.systemctlInstalled && !unitProcess.running) {
             unitProcess.command = ["systemctl", "is-active", "twingate.service"]
             unitProcess.running = true
+            unitWatchdog.restart()
           }
         }
       } else if (kind === "resources") {
@@ -507,6 +532,7 @@ Item {
     command: []
     stdout: StdioCollector { id: unitStdout; waitForEnd: true }
     onExited: function(exitCode) {
+      unitWatchdog.stop()
       // is-active exits non-zero for a stopped unit, so the word decides.
       var word = String(unitStdout.text || "").trim()
       if (Model.isTransitional(word)) return
@@ -562,6 +588,7 @@ Item {
     command: []
     stdout: StdioCollector { id: discoverStdout; waitForEnd: true }
     onExited: function(exitCode) {
+      discoverWatchdog.stop()
       var stdout = String(discoverStdout.text || "")
       var kind = root._discoverKind
       root._discoverKind = ""
@@ -580,7 +607,13 @@ Item {
     stdout: StdioCollector { id: authProbeStdout; waitForEnd: true }
     onExited: function(exitCode) {
       var word = String(authProbeStdout.text || "").trim()
-      if (Model.isTransitional(word)) return
+      // Neither running nor stopped yet. Ask again rather than leave the panel
+      // unable to say whether sign-in prompts will arrive.
+      if (Model.isTransitional(word) && root._authProbeTries < 5) {
+        root._authProbeTries += 1
+        authProbeRetry.restart()
+        return
+      }
       root.authPromptsActive = word === "active"
       root.authPromptsProbed = true
     }
