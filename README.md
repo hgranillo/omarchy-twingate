@@ -14,7 +14,7 @@ particular host. Both should be a glance and a keystroke, not a terminal.
 ### Install
 
 ```
-omarchy plugin add https://github.com/hgranillo/omarchy-twingate.git --enable --yes
+omarchy plugin add https://github.com/hgranillo/omarchy-twingate.git --enable
 omarchy bar move io.github.hgranillo.twingate --section right
 ```
 
@@ -174,8 +174,10 @@ the widget's entry in `~/.config/omarchy/shell.json`:
 It reads only the local client (`twingate-notifier status` and `resources`,
 `twingate account list`, `twingate exit-node list`), plus `which` to see what is
 installed and `systemctl is-active` for the two services.
-Resource names, addresses and your email are written nowhere but the clipboard,
-on request.
+Resource names, addresses and your email are never sent anywhere. The only ones
+written to disk are the five recent names shown above, in `shell.json` (mode
+0600). Anything that backs up or syncs that file carries them too. Set
+`maxRecentResources` to `0` to keep none.
 
 One outbound connection: the optional daily `git fetch` of its own checkout.
 `checkForUpdates: false` makes it fully offline. There is no telemetry.
@@ -192,6 +194,7 @@ Configure through _Setup > Plugins_, or inline on the widget's `shell.json` entr
 | `notifications` | `true` | Notify on connection changes. |
 | `maxResourceRows` | `12` | Rows before a list clips. `0` draws every resource. |
 | `checkForUpdates` | `true` | Check daily whether the checkout is behind its origin. |
+| `maxRecentResources` | `5` | Names kept in `shell.json` for `RECENT`. `0` stores none. |
 
 ### IPC
 

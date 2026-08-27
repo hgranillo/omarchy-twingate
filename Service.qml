@@ -17,9 +17,8 @@ Item {
   property bool clipboardInstalled: false
   property bool browserInstalled: false
   property bool probed: false
-  // Session authentication is push-based: the daemon raises the request and this
-  // user service turns it into the notification that opens the browser. With it
-  // stopped, Twingate can never ask, and nothing on the desktop says why.
+  // Session authentication is push-based, and this user service delivers the
+  // request. Stopped, Twingate can never ask, and nothing says why.
   property bool authPromptsActive: true
   property bool authPromptsProbed: false
 
@@ -101,7 +100,7 @@ Item {
     if (capsProcess.running) return
     capsProcess.command = ["which", "twingate-notifier", "twingate", "systemctl",
                            "wl-copy", "omarchy-launch-browser"]
-    capsProcess.running = true
+    capsStdout.reset(); capsProcess.running = true
   }
 
   function refresh() {
@@ -116,8 +115,12 @@ Item {
 
   // Only a request that has not started may be shared. Joining an in-flight one
   // would answer the new caller with output the daemon produced before it asked.
+  readonly property int maxQueued: 8
+
   function enqueue(kind, arg, force) {
     if (!notifierInstalled) return
+    // IPC callers can ask faster than the daemon answers; drop rather than grow.
+    if (_queue.length >= maxQueued) return
     if (force !== true) {
       for (var i = 0; i < _queue.length; i++)
         if (_queue[i].kind === kind && _queue[i].arg === arg) return
@@ -134,7 +137,7 @@ Item {
     var job = next.shift()
     _queue = next
     _kind = job.kind
-    notifierStdout.reset()
+    notifierStdout.reset(); notifierStderr.reset()
     notifierProcess.command = job.arg === "" ? ["twingate-notifier", job.kind]
                                              : ["twingate-notifier", job.kind, job.arg]
     notifierProcess.running = true
@@ -145,11 +148,19 @@ Item {
   function refreshResources(force) { enqueue("resources", "", force === true) }
 
   function authenticate(name) {
-    if (String(name || "") === "") return
-    authenticating = String(name)
+    var target = String(name || "")
+    if (target === "" || target.length > 256) return
+    if (authenticating === target && authProcessPending()) return
+    authenticating = target
     actionStatus = "Continue in your browser…"
     actionStatusTimer.restart()
-    enqueue("auth", String(name), true)
+    enqueue("auth", target, true)
+  }
+
+  function authProcessPending() {
+    if (_kind === "auth") return true
+    for (var i = 0; i < _queue.length; i++) if (_queue[i].kind === "auth") return true
+    return false
   }
 
   function enqueueDiscover(kind) {
@@ -171,7 +182,7 @@ Item {
     discoverProcess.command = kind === "exit-nodes"
       ? ["twingate", "exit-node", "list", "-d"]
       : ["twingate", "account", "list", "-d"]
-    discoverProcess.running = true
+    discoverStdout.reset(); discoverProcess.running = true
     discoverWatchdog.restart()
   }
 
@@ -190,8 +201,7 @@ Item {
   }
 
   // A daemon that did not answer is not a state change, and announcing it would
-  // announce the recovery too. The first resolution is skipped so every login
-  // does not raise a notification.
+  // announce the recovery too. The first resolution is skipped so logins are quiet.
   function announce() {
     if (!notifications || conn === Model.CONN_UNKNOWN) return
     if (_announced === "") { _announced = conn; return }
@@ -239,7 +249,7 @@ Item {
     lastError = ""
     actionStatus = verb === "start" ? "Connecting…" : "Disconnecting…"
     controlProcess.command = ["systemctl", verb, "twingate.service"]
-    controlProcess.running = true
+    controlStdout.reset(); controlStderr.reset(); controlProcess.running = true
     controlWatchdog.restart()
     desiredGuard.restart()
   }
@@ -275,14 +285,14 @@ Item {
     cliActionProcess.command = verb === "stop"
       ? ["twingate", "exit-node", "stop", "-d"]
       : ["twingate", "exit-node", verb, String(node.name), "-d"]
-    cliActionProcess.running = true
+    cliActionStdout.reset(); cliActionStderr.reset(); cliActionProcess.running = true
   }
 
   function switchAccount(email) {
     if (!cliInstalled || cliActionProcess.running || String(email || "") === "") return
     switchingAccount = String(email)
     cliActionProcess.command = ["twingate", "account", "switch", String(email), "-d"]
-    cliActionProcess.running = true
+    cliActionStdout.reset(); cliActionStderr.reset(); cliActionProcess.running = true
   }
 
   // Omarchy clones plugins into a directory named by the manifest id and never
@@ -294,14 +304,14 @@ Item {
     if (!systemctlInstalled || authProbeProcess.running) return
     _authProbeTries = 0
     authProbeProcess.command = ["systemctl", "--user", "is-active", "twingate-desktop-notifier"]
-    authProbeProcess.running = true
+    authProbeStdout.reset(); authProbeProcess.running = true
   }
 
   function enableAuthPrompts() {
     if (authActionProcess.running) return
     actionStatus = "Starting Twingate notifications…"
     authActionProcess.command = ["systemctl", "--user", "enable", "--now", "twingate-desktop-notifier"]
-    authActionProcess.running = true
+    authActionStderr.reset(); authActionProcess.running = true
   }
 
   function checkUpdate() {
@@ -311,7 +321,7 @@ Item {
       + " && git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1"
       + " && timeout 20 git fetch -q"
       + " && git rev-list --count HEAD..@{u} || echo 0"]
-    updateProcess.running = true
+    updateStdout.reset(); updateProcess.running = true
   }
 
   function settle() {
@@ -380,9 +390,8 @@ Item {
   }
 
   // A poll is skipped while its own process still runs, so one that never exits
-  // stops the panel refreshing permanently. One deadline per process, because a
-  // shared one either cancels a healthy launch that started near the old
-  // deadline, or gets pushed out ahead of a hung process forever.
+  // stops the panel refreshing permanently. One deadline per process: a shared one
+  // either kills a healthy launch or gets pushed ahead of a hung process forever.
   component ReapTimer: Timer {
     property var watched: null
     interval: 15000
@@ -441,7 +450,7 @@ Item {
     repeat: false
     onTriggered: if (!authProbeProcess.running) {
       authProbeProcess.command = ["systemctl", "--user", "is-active", "twingate-desktop-notifier"]
-      authProbeProcess.running = true
+      authProbeStdout.reset(); authProbeProcess.running = true
     }
   }
 
@@ -459,7 +468,7 @@ Item {
     id: capsProcess
     running: false
     command: []
-    stdout: StdioCollector { id: capsStdout; waitForEnd: true }
+    stdout: CappedStdout { id: capsStdout; maxChars: 64 * 1024 }
     onExited: function(exitCode) {
       var caps = Model.parseWhich(capsStdout.text, ["twingate-notifier", "twingate", "systemctl",
                                                    "wl-copy", "omarchy-launch-browser"])
@@ -486,7 +495,7 @@ Item {
     running: false
     command: []
     stdout: CappedStdout { id: notifierStdout }
-    stderr: StdioCollector { id: notifierStderr; waitForEnd: true }
+    stderr: CappedStdout { id: notifierStderr; maxChars: 64 * 1024 }
     onExited: function(exitCode) {
       notifierWatchdog.stop()
       var stdout = String(notifierStdout.text || "")
@@ -508,7 +517,7 @@ Item {
           root._pendingNotifierError = stderr.trim()
           if (root.systemctlInstalled && !unitProcess.running) {
             unitProcess.command = ["systemctl", "is-active", "twingate.service"]
-            unitProcess.running = true
+            unitStdout.reset(); unitProcess.running = true
             unitWatchdog.restart()
           }
         }
@@ -530,7 +539,7 @@ Item {
     id: unitProcess
     running: false
     command: []
-    stdout: StdioCollector { id: unitStdout; waitForEnd: true }
+    stdout: CappedStdout { id: unitStdout; maxChars: 4 * 1024 }
     onExited: function(exitCode) {
       unitWatchdog.stop()
       // is-active exits non-zero for a stopped unit, so the word decides.
@@ -561,8 +570,8 @@ Item {
     id: controlProcess
     running: false
     command: []
-    stdout: StdioCollector { id: controlStdout; waitForEnd: true }
-    stderr: StdioCollector { id: controlStderr; waitForEnd: true }
+    stdout: CappedStdout { id: controlStdout; maxChars: 64 * 1024 }
+    stderr: CappedStdout { id: controlStderr; maxChars: 64 * 1024 }
     onExited: function(exitCode) {
       controlWatchdog.stop()
       var stderr = String(controlStderr.text || "")
@@ -586,7 +595,7 @@ Item {
     id: discoverProcess
     running: false
     command: []
-    stdout: StdioCollector { id: discoverStdout; waitForEnd: true }
+    stdout: CappedStdout { id: discoverStdout; maxChars: 256 * 1024 }
     onExited: function(exitCode) {
       discoverWatchdog.stop()
       var stdout = String(discoverStdout.text || "")
@@ -604,7 +613,7 @@ Item {
     id: authProbeProcess
     running: false
     command: []
-    stdout: StdioCollector { id: authProbeStdout; waitForEnd: true }
+    stdout: CappedStdout { id: authProbeStdout; maxChars: 4 * 1024 }
     onExited: function(exitCode) {
       var word = String(authProbeStdout.text || "").trim()
       // Neither running nor stopped yet. Ask again rather than leave the panel
@@ -623,7 +632,7 @@ Item {
     id: authActionProcess
     running: false
     command: []
-    stderr: StdioCollector { id: authActionStderr; waitForEnd: true }
+    stderr: CappedStdout { id: authActionStderr; maxChars: 64 * 1024 }
     onExited: function(exitCode) {
       if (exitCode !== 0) {
         root.lastError = (String(authActionStderr.text || "").trim()
@@ -641,7 +650,7 @@ Item {
     id: updateProcess
     running: false
     command: []
-    stdout: StdioCollector { id: updateStdout; waitForEnd: true }
+    stdout: CappedStdout { id: updateStdout; maxChars: 4 * 1024 }
     onExited: function(exitCode) {
       var n = parseInt(String(updateStdout.text || "").trim(), 10)
       root.updateCount = isFinite(n) && n > 0 ? n : 0
@@ -652,8 +661,8 @@ Item {
     id: cliActionProcess
     running: false
     command: []
-    stdout: StdioCollector { id: cliActionStdout; waitForEnd: true }
-    stderr: StdioCollector { id: cliActionStderr; waitForEnd: true }
+    stdout: CappedStdout { id: cliActionStdout; maxChars: 64 * 1024 }
+    stderr: CappedStdout { id: cliActionStderr; maxChars: 64 * 1024 }
     onExited: function(exitCode) {
       var stderr = String(cliActionStderr.text || "")
       var stdout = String(cliActionStdout.text || "")

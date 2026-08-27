@@ -73,8 +73,7 @@ function statusLabel(conn, error) {
 }
 
 // Locked resources are deliberately absent: a network can hold resources that
-// are never authorized, and treating those as a fault leaves the icon warning
-// permanently, which makes it signal nothing.
+// are never authorized, and an icon lit permanently signals nothing.
 function iconMode(conn, hasError, expiredCount) {
   if (hasError) return MODE_WARN
   if (conn === CONN_UNKNOWN || conn === CONN_NOT_CONFIGURED || conn === CONN_AUTHENTICATING) return MODE_WARN
@@ -87,9 +86,8 @@ function isWebUrl(url) {
 }
 
 // Twingate publishes no explicit flag. The `locked-rid:` prefix on auth_flow_id
-// is the explicit signal and matches the blank AUTH STATUS column that
-// `twingate resources` prints; a zero auth_expires_at is the fallback only for
-// entries that carry no flow id at all.
+// is the signal, matching the blank AUTH STATUS column `twingate resources`
+// prints. A zero auth_expires_at is the fallback only when no flow id is set.
 function isLocked(entry) {
   var flow = String(entry.auth_flow_id || "")
   if (flow !== "") return flow.indexOf(LOCKED_FLOW_PREFIX) === 0
@@ -212,6 +210,15 @@ function parseResources(text, includeHidden) {
     adminUrl: isWebUrl(payload.admin_url) ? String(payload.admin_url) : "",
     resources: resources
   }
+}
+
+// Qt Text defaults to AutoText and sniffs for markup, and the shell's hero and
+// tooltip components never override it. Angle brackets never appear in a real
+// resource name, so dropping them costs nothing and stops <img src=...> working.
+function plainText(value) {
+  return String(value === undefined || value === null ? "" : value)
+    .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
 }
 
 function resourceGlyph(resource) {
@@ -375,7 +382,7 @@ if (typeof module !== "undefined") {
     parseStatus: parseStatus, isTransitional: isTransitional, statusLabel: statusLabel,
     isWebUrl: isWebUrl, isLocked: isLocked, humanize: humanize,
     parseResources: parseResources, decorate: decorate,
-    isHidden: isHidden,
+    isHidden: isHidden, plainText: plainText,
     resourceGlyph: resourceGlyph,
     partition: partition, filterResources: filterResources,
     recentResources: recentResources, pushRecent: pushRecent, excludeNames: excludeNames,

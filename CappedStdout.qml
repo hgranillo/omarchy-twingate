@@ -1,8 +1,7 @@
 import Quickshell.Io
 
 // StdioCollector grows for as long as a command keeps writing, and every plugin
-// shares one long-lived shell process. SplitParser hands each chunk to onRead
-// instead of accumulating, which is what makes a ceiling possible here.
+// shares one long-lived shell process. SplitParser hands over each chunk instead.
 SplitParser {
   id: root
 

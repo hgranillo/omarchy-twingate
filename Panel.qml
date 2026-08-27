@@ -63,7 +63,7 @@ Panel {
   readonly property var resourceView: Model.filterResources(listedResources, filterText, twingate.maxResourceRows)
   readonly property var resourceRows: resourceView.rows
 
-  readonly property int recentCap: 5
+  readonly property int recentCap: twingate.intSetting("maxRecentResources", 5, 0, 20)
   readonly property var recentNames: settings.recentResources instanceof Array ? settings.recentResources : []
   readonly property var recentRows: Model.recentResources(twingate.reachableResources, recentNames, recentCap)
 
@@ -265,6 +265,7 @@ Panel {
   }
 
   function rememberResource(resource) {
+    if (recentCap === 0) return
     if (!resource || !bar || !bar.shell || typeof bar.shell.updateEntryInline !== "function") return
     var entry = { id: root.moduleName }
     for (var key in settings) if (key !== "id") entry[key] = settings[key]
@@ -391,7 +392,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     tooltipText: {
-      var head = (twingate.networkName === "" ? "Twingate" : twingate.networkName) + ": " + twingate.statusText
+      var head = Model.plainText(twingate.networkName === "" ? "Twingate" : twingate.networkName) + ": " + twingate.statusText
       return twingate.sessionExpiry === "" ? head : head + "\n" + twingate.sessionExpiry
     }
     iconComponent: Component {
@@ -474,7 +475,7 @@ Panel {
             PanelHero {
               id: hero
               width: parent.width
-              title: twingate.networkName === "" ? "Twingate" : twingate.networkName
+              title: Model.plainText(twingate.networkName === "" ? "Twingate" : twingate.networkName)
               meta: root.heroStatusText
               detail: root.heroDetail
               foreground: root.foreground
@@ -509,6 +510,8 @@ Panel {
           }
 
           Text {
+
+            textFormat: Text.PlainText
             visible: twingate.actionStatus !== "" || twingate.lastError !== ""
             width: parent.width
             text: twingate.actionStatus !== "" ? twingate.actionStatus : twingate.lastError
@@ -524,9 +527,11 @@ Panel {
             spacing: Style.space(2)
 
             Text {
+
+              textFormat: Text.PlainText
               visible: twingate.userEmail !== ""
               width: parent.width
-              text: twingate.userEmail
+              text: Model.plainText(twingate.userEmail)
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -534,6 +539,8 @@ Panel {
             }
 
             Text {
+
+              textFormat: Text.PlainText
               visible: twingate.sessionExpiry !== ""
               width: parent.width
               text: twingate.sessionExpiry
@@ -610,6 +617,8 @@ Panel {
             }
 
             Text {
+
+              textFormat: Text.PlainText
               visible: root.authView.truncated
               width: parent.width
               text: "+" + (root.authView.total - root.authRows.length) + " more  ·  type to narrow"
@@ -660,6 +669,8 @@ Panel {
             }
 
             Text {
+
+              textFormat: Text.PlainText
               visible: root.resourceRows.length === 0
               width: parent.width
               text: "No resources match “" + root.filterText + "”"
@@ -681,6 +692,8 @@ Panel {
             }
 
             Text {
+
+              textFormat: Text.PlainText
               visible: root.resourceView.truncated
               width: parent.width
               text: "+" + (root.resourceView.total - root.resourceRows.length) + " more  ·  type to narrow"
@@ -801,6 +814,8 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+
+        textFormat: Text.PlainText
         text: notice.glyph
         color: root.foreground
         font.family: root.fontFamily
@@ -816,6 +831,8 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: notice.label
           color: root.foreground
@@ -825,6 +842,8 @@ Panel {
         }
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           visible: notice.detail !== ""
           text: notice.detail
@@ -878,6 +897,8 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+
+        textFormat: Text.PlainText
         text: authRow.resource ? Model.resourceGlyph(authRow.resource) : ""
         color: authRow.resource && authRow.resource.expired ? root.urgent : root.foreground
         font.family: root.fontFamily
@@ -901,6 +922,8 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: authRow.resource ? authRow.resource.name : ""
           color: root.foreground
@@ -910,6 +933,8 @@ Panel {
         }
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: authRow.resource
             ? (authRow.resource.state === "locked" ? authRow.resource.address
@@ -932,7 +957,7 @@ Panel {
 
       PanelToolTip {
         visible: parent.containsMouse
-        text: "Authenticate " + (authRow.resource ? authRow.resource.name : "")
+        text: "Authenticate " + Model.plainText(authRow.resource ? authRow.resource.name : "")
         fontFamily: root.fontFamily
       }
     }
@@ -962,6 +987,8 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+
+        textFormat: Text.PlainText
         id: resourceGlyph
         text: resourceRow.resource && resourceRow.resource.state !== "ok"
           ? Model.resourceGlyph(resourceRow.resource) : ""
@@ -980,6 +1007,8 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: resourceRow.resource ? resourceRow.resource.name : ""
           color: root.foreground
@@ -989,6 +1018,8 @@ Panel {
         }
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: resourceRow.resource ? resourceRow.resource.address : ""
           color: root.dim
@@ -1042,7 +1073,7 @@ Panel {
       PanelToolTip {
         visible: parent.containsMouse
         text: resourceRow.resource
-          ? resourceRow.resource.address + "\n" + resourceRow.resource.expiryText
+          ? Model.plainText(resourceRow.resource.address) + "\n" + resourceRow.resource.expiryText
           : ""
         fontFamily: root.fontFamily
       }
@@ -1074,6 +1105,8 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+
+        textFormat: Text.PlainText
         text: "\u{F11E2}"
         color: exitNodeRow.nodeActive ? root.foreground : root.dim
         font.family: root.fontFamily
@@ -1092,6 +1125,8 @@ Panel {
       }
 
       Text {
+
+        textFormat: Text.PlainText
         text: exitNodeRow.node ? String(exitNodeRow.node.name) : ""
         color: root.foreground
         font.family: root.fontFamily
@@ -1143,6 +1178,8 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+
+        textFormat: Text.PlainText
         text: ""
         color: accountRow.currentAccount ? root.foreground : root.dim
         font.family: root.fontFamily
@@ -1166,6 +1203,8 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           text: accountRow.account ? String(accountRow.account.email) : ""
           color: root.foreground
@@ -1176,6 +1215,8 @@ Panel {
         }
 
         Text {
+
+          textFormat: Text.PlainText
           width: parent.width
           visible: accountRow.account && String(accountRow.account.network) !== ""
           text: accountRow.account ? String(accountRow.account.network) : ""

@@ -34,7 +34,7 @@ Item {
     ShapePath {
       fillColor: root.color
       strokeWidth: 0
-      // Drawn on a 24x24 box; the Scale below maps it onto iconSize.
+      // Drawn on a 24x24 box.
       PathSvg {
         path: "M12 2.2 L20.2 5.4 V11.6 C20.2 16.7 16.7 20.8 12 22.1 C7.3 20.8 3.8 16.7 3.8 11.6 V5.4 Z"
       }

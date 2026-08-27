@@ -268,3 +268,11 @@ test("a live authorization means the session is not expired", () => {
   const allStale = decode([{ name: "stale", address: "s.example", auth_expires_at: NOW - 3600, ...base }])
   assert.equal(M.sessionExpiryText(allStale, NOW), "Session expired")
 })
+
+test("plainText strips what Qt would treat as markup", () => {
+  assert.equal(M.plainText("<img src=x onerror=y>"), "img src=x onerror=y")
+  assert.equal(M.plainText("prod-db.example"), "prod-db.example")
+  assert.equal(M.plainText("a\u0001b\u007fc"), "a b c")
+  assert.equal(M.plainText(null), "")
+  assert.equal(M.plainText(undefined), "")
+})

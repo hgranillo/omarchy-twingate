@@ -18,7 +18,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Repository code runs here, where the token cannot write.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -30,16 +29,12 @@ jobs:
           node-version: 24
       - run: node --test tests/*.test.js
 
-  # This job never executes repository code, so the write token is not exposed
-  # to whatever the tag happens to point at.
   release:
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # Never interpolate the tag into shell source: a tag may legitimately be
-      # named v$(command), and ${{ }} would paste it in as code.
       - name: Resolve and check the tag
         env:
           RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}

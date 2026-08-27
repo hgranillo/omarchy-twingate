@@ -24,7 +24,8 @@
       "showHidden": false,
       "notifications": true,
       "maxResourceRows": 12,
-      "checkForUpdates": true
+      "checkForUpdates": true,
+      "maxRecentResources": 5
     },
     "schema": [
       {
@@ -77,6 +78,16 @@
         "label": "Check for plugin updates",
         "description": "Once a day, see whether this plugin's git checkout is behind its origin and offer to update it. Omarchy never pulls plugins on its own.",
         "defaultValue": true
+      },
+      {
+        "key": "maxRecentResources",
+        "type": "integer",
+        "label": "Recent resources remembered",
+        "description": "Names kept in shell.json for the RECENT section. 0 stores none.",
+        "min": 0,
+        "max": 20,
+        "step": 1,
+        "defaultValue": 5
       }
     ]
   }

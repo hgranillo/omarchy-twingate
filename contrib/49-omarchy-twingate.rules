@@ -4,14 +4,22 @@
  * polkit agent prompts once, and the grant is cached for the session because
  * org.freedesktop.systemd1.manage-units is auth_admin_keep.
  *
+ * subject.local and subject.active limit it to a seat at this machine, so a
+ * remote or inactive session cannot use it.
+ *
  * Install:
  *   sudo install -m 644 contrib/49-omarchy-twingate.rules /etc/polkit-1/rules.d/
  * Then replace YOUR_USERNAME below.
+ *
+ * Remove:
+ *   sudo rm /etc/polkit-1/rules.d/49-omarchy-twingate.rules
+ * Removing the plugin does not remove this file.
  */
 polkit.addRule(function (action, subject) {
   if (action.id === "org.freedesktop.systemd1.manage-units" &&
       action.lookup("unit") === "twingate.service" &&
-      subject.user === "YOUR_USERNAME") {
+      subject.user === "YOUR_USERNAME" &&
+      subject.local && subject.active) {
     return polkit.Result.YES;
   }
 });

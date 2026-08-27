@@ -1,5 +1,3 @@
-# GitHub documents this path as .github/dependabot.yml only. It is deliberately
-# not .yaml like the workflows: an unread config fails silently.
 version: 2
 
 updates:
