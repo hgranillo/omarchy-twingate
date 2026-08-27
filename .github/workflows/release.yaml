@@ -11,33 +11,53 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  # Repository code runs here, where the token cannot write.
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve the tag
-        run: echo "TAG=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: node --test tests/*.test.js
 
-      - uses: actions/checkout@v7
+  # This job never executes repository code, so the write token is not exposed
+  # to whatever the tag happens to point at.
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Never interpolate the tag into shell source: a tag may legitimately be
+      # named v$(command), and ${{ }} would paste it in as code.
+      - name: Resolve and check the tag
+        env:
+          RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if ! [[ "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "refusing tag $RAW_TAG: expected vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          printf 'TAG=%s\n' "$RAW_TAG" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-
-      - run: node --test tests/*.test.js
-
       - name: Tag must match manifest.json
         run: |
-          version=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("manifest.json","utf8")).version)')
+          version=$(python3 -c 'import json;print(json.load(open("manifest.json"))["version"])')
           if [ "$TAG" != "v$version" ]; then
             echo "tag $TAG does not match manifest.json version $version" >&2
             exit 1
