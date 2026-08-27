@@ -150,7 +150,7 @@ prompts is a user unit and runs directly.
 
 | State | The panel offers |
 |---|---|
-| `twingate` is not on PATH | **Install Twingate**, running `omarchy pkg aur add twingate && sudo twingate setup` |
+| `twingate` is not on PATH | [**Install Twingate**](https://www.twingate.com/docs/linux#pacman-arch-linux) |
 | Sign-in prompts are not delivered | **Turn on Twingate sign-in prompts**, running `systemctl --user enable --now twingate-desktop-notifier` |
 | Installed but no network configured | **Finish Twingate setup**, running `sudo twingate setup` |
 | The checkout is behind its origin | **Update this panel**, running `omarchy plugin update <id> && omarchy-restart-shell` |

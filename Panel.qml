@@ -90,8 +90,10 @@ Panel {
     return out
   }
 
+  readonly property string installDocsUrl: "https://www.twingate.com/docs/linux#pacman-arch-linux"
+
   function noticeGlyph(kind) {
-    if (kind === "install") return "\u{F01DA}"
+    if (kind === "install") return "\u{F059F}"
     if (kind === "prompts") return "\u{F009A}"
     if (kind === "setup") return "\u{F0493}"
     return "\u{F06B0}"
@@ -105,14 +107,14 @@ Panel {
   }
 
   function noticeDetail(kind) {
-    if (kind === "install") return "The twingate client is not on PATH. Installs it, then runs setup."
+    if (kind === "install") return "The twingate client is not on PATH. Opens Twingate's install guide for Arch."
     if (kind === "prompts") return "Twingate asks you to sign in through a desktop notification. That service is not running, so it cannot ask."
     if (kind === "setup") return "The client is installed but has no network configured."
     return twingate.updateCount === 1 ? "1 new commit upstream" : twingate.updateCount + " new commits upstream"
   }
 
   function runNotice(kind) {
-    if (kind === "install") present("omarchy pkg aur add twingate && sudo twingate setup")
+    if (kind === "install") twingate.openUrl(installDocsUrl)
     else if (kind === "prompts") twingate.enableAuthPrompts()
     else if (kind === "setup") present("sudo twingate setup")
     else present("omarchy plugin update " + moduleName + " && omarchy-restart-shell")
@@ -843,8 +845,11 @@ Panel {
 
       PanelToolTip {
         visible: parent.containsMouse
-        text: notice.kind === "prompts" ? "Starts the Twingate notification service"
-                                        : "Opens a terminal so you can see what runs"
+        text: {
+          if (notice.kind === "install") return "Opens the official install guide in your browser"
+          if (notice.kind === "prompts") return "Starts the Twingate notification service"
+          return "Opens a terminal so you can see what runs"
+        }
         fontFamily: root.fontFamily
       }
     }
