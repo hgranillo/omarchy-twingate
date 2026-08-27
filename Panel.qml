@@ -423,7 +423,9 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(400))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(600))
+    contentHeight: panel.fittedContentHeight(headerArea.implicitHeight + column.implicitHeight
+      + footerArea.implicitHeight + (statusLine.visible ? statusLine.implicitHeight : 0)
+      + Style.space(30), Style.space(600))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -449,13 +451,188 @@ Panel {
         }
       }
 
+      Column {
+        id: headerArea
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        spacing: Style.space(12)
+
+        Item {
+          id: header
+          width: parent.width
+          implicitHeight: hero.implicitHeight
+          // Exposed for the hero's trailingControl, whose `root` resolves to
+          // PanelHero rather than this Panel.
+          readonly property bool ringVisible: root.headerHasCursor
+          function focusHero() { root.cursorActive = true; root.focusSection = "header" }
+
+          PanelHero {
+            id: hero
+            width: parent.width
+            title: Model.plainText(twingate.networkName === "" ? "Twingate" : twingate.networkName)
+            meta: root.heroStatusText
+            detail: root.heroDetail
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            iconOpacity: twingate.active ? 1.0 : 0.5
+            iconComponent: Component {
+              TwingateIcon {
+                iconSize: Style.font.display
+                color: root.iconColor
+                mode: twingate.iconMode
+              }
+            }
+            trailingControl: Component {
+              ToggleSwitch {
+                id: powerSwitch
+                visible: twingate.systemctlInstalled && twingate.notifierInstalled
+                checked: twingate.active
+                busy: twingate.busy
+                hasCursor: header.ringVisible
+                foreground: hero.foreground
+                onHovered: function(on) { if (on) header.focusHero() }
+                onToggled: twingate.toggleConnection()
+
+                PanelToolTip {
+                  visible: powerSwitch.containsMouse
+                  text: root.toggleHint
+                  fontFamily: hero.fontFamily
+                }
+              }
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(2)
+
+          Text {
+            textFormat: Text.PlainText
+            visible: twingate.userEmail !== ""
+            width: parent.width
+            text: Model.plainText(twingate.userEmail)
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: twingate.sessionExpiry !== ""
+            width: parent.width
+            text: twingate.sessionExpiry
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+        }
+
+        Repeater {
+          model: root.notices
+          ActionNotice {
+            required property var modelData
+            required property int index
+            width: parent.width
+            kind: modelData
+            rowIndex: index
+          }
+        }
+
+        TextField {
+          id: search
+          visible: root.showSearch
+          width: parent.width
+          placeholderText: "Search resources…"
+          foreground: root.foreground
+          verticalPadding: Style.space(4)
+          hasCursor: root.cursorActive && root.focusSection === "search"
+          text: root.filterText
+          onTextEdited: root.setFilter(text)
+          Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Escape) {
+              keyCatcher.forceActiveFocus()
+              var landing = root.firstListSection()
+              root.focusSection = landing === "" ? "search" : landing
+              if (landing !== "") root.setSectionIndex(landing, 0)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Down) {
+              keyCatcher.forceActiveFocus()
+              var next = root.firstListSection()
+              if (next !== "") { root.focusSection = next; root.setSectionIndex(next, 0) }
+              event.accepted = true
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+              var hit = root.selectedResource()
+              if (hit) { if (hit.needsAuth) twingate.authenticate(hit.name); else root.copyResource(hit) }
+              event.accepted = true
+            }
+          }
+        }
+      }
+
+      Item {
+        id: footerArea
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        visible: twingate.notifierInstalled
+        implicitHeight: footerActions.implicitHeight
+
+        Row {
+          id: footerActions
+          anchors.left: parent.left
+          spacing: Style.space(6)
+
+          PanelActionButton {
+            iconText: "\u{F0450}"
+            tooltipText: "Refresh"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: twingate.refreshAll()
+          }
+
+          PanelActionButton {
+            visible: twingate.adminUrl !== "" && twingate.browserInstalled
+            iconText: "\u{F059F}"
+            tooltipText: "Open the Twingate admin console"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: twingate.openUrl(twingate.adminUrl)
+          }
+
+          PanelActionButton {
+            iconText: "\u{F06E}"
+            tooltipText: twingate.showHidden ? "Hide hidden resources" : "Show hidden resources"
+            foreground: twingate.showHidden ? root.foreground : root.dim
+            fontFamily: root.fontFamily
+            onClicked: root.toggleHidden()
+          }
+        }
+
+        PanelActionButton {
+          anchors.right: parent.right
+          // Clear of the Flickable's scroll bar, which overlays this edge
+          // and would otherwise swallow the press.
+          anchors.rightMargin: Style.space(14)
+          anchors.verticalCenter: footerActions.verticalCenter
+          iconText: "\u{F06B0}"
+          tooltipText: "Check for updates"
+          foreground: root.dim
+          fontFamily: root.fontFamily
+          onClicked: twingate.checkUpdate(true)
+        }
+      }
+
       Text {
         id: statusLine
         visible: twingate.actionStatus !== "" || twingate.lastError !== ""
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        topPadding: Style.space(6)
+        anchors.bottom: footerArea.top
+        bottomPadding: Style.space(6)
         textFormat: Text.PlainText
         text: twingate.actionStatus !== "" ? twingate.actionStatus : twingate.lastError
         color: twingate.lastError !== "" && twingate.actionStatus === "" ? root.urgent : root.dim
@@ -468,8 +645,10 @@ Panel {
         id: panelFlick
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: statusLine.visible ? statusLine.top : parent.bottom
+        anchors.top: headerArea.bottom
+        anchors.topMargin: Style.space(12)
+        anchors.bottom: statusLine.visible ? statusLine.top : footerArea.top
+        anchors.bottomMargin: Style.space(6)
         contentWidth: width
         contentHeight: column.implicitHeight
         clip: true
@@ -482,120 +661,6 @@ Panel {
           id: column
           width: panelFlick.width
           spacing: Style.space(12)
-
-          Item {
-            id: header
-            width: parent.width
-            implicitHeight: hero.implicitHeight
-            // Exposed for the hero's trailingControl, whose `root` resolves to
-            // PanelHero rather than this Panel.
-            readonly property bool ringVisible: root.headerHasCursor
-            function focusHero() { root.cursorActive = true; root.focusSection = "header" }
-
-            PanelHero {
-              id: hero
-              width: parent.width
-              title: Model.plainText(twingate.networkName === "" ? "Twingate" : twingate.networkName)
-              meta: root.heroStatusText
-              detail: root.heroDetail
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              iconOpacity: twingate.active ? 1.0 : 0.5
-              iconComponent: Component {
-                TwingateIcon {
-                  iconSize: Style.font.display
-                  color: root.iconColor
-                  mode: twingate.iconMode
-                }
-              }
-              trailingControl: Component {
-                ToggleSwitch {
-                  id: powerSwitch
-                  visible: twingate.systemctlInstalled && twingate.notifierInstalled
-                  checked: twingate.active
-                  busy: twingate.busy
-                  hasCursor: header.ringVisible
-                  foreground: hero.foreground
-                  onHovered: function(on) { if (on) header.focusHero() }
-                  onToggled: twingate.toggleConnection()
-
-                  PanelToolTip {
-                    visible: powerSwitch.containsMouse
-                    text: root.toggleHint
-                    fontFamily: hero.fontFamily
-                  }
-                }
-              }
-            }
-          }
-
-          Column {
-            width: parent.width
-            spacing: Style.space(2)
-
-            Text {
-              textFormat: Text.PlainText
-              visible: twingate.userEmail !== ""
-              width: parent.width
-              text: Model.plainText(twingate.userEmail)
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              elide: Text.ElideRight
-            }
-
-            Text {
-              textFormat: Text.PlainText
-              visible: twingate.sessionExpiry !== ""
-              width: parent.width
-              text: twingate.sessionExpiry
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
-            }
-          }
-
-          Repeater {
-            model: root.notices
-            ActionNotice {
-              required property var modelData
-              required property int index
-              width: parent.width
-              kind: modelData
-              rowIndex: index
-            }
-          }
-
-          TextField {
-            id: search
-            visible: root.showSearch
-            width: parent.width
-            placeholderText: "Search resources…"
-            foreground: root.foreground
-            verticalPadding: Style.space(4)
-            hasCursor: root.cursorActive && root.focusSection === "search"
-            text: root.filterText
-            onTextEdited: root.setFilter(text)
-            Keys.onPressed: function(event) {
-              if (event.key === Qt.Key_Escape) {
-                keyCatcher.forceActiveFocus()
-                var landing = root.firstListSection()
-                root.focusSection = landing === "" ? "search" : landing
-                if (landing !== "") root.setSectionIndex(landing, 0)
-                event.accepted = true
-              } else if (event.key === Qt.Key_Down) {
-                keyCatcher.forceActiveFocus()
-                var next = root.firstListSection()
-                if (next !== "") { root.focusSection = next; root.setSectionIndex(next, 0) }
-                event.accepted = true
-              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                var hit = root.selectedResource()
-                if (hit) { if (hit.needsAuth) twingate.authenticate(hit.name); else root.copyResource(hit) }
-                event.accepted = true
-              }
-            }
-          }
 
           PanelSeparator { visible: root.showAuth; foreground: root.foreground }
 
@@ -755,56 +820,6 @@ Panel {
               }
             }
           }
-
-          Item {
-            visible: twingate.notifierInstalled
-            width: parent.width
-            implicitHeight: footerActions.implicitHeight
-
-            Row {
-              id: footerActions
-              anchors.left: parent.left
-              spacing: Style.space(6)
-
-              PanelActionButton {
-                iconText: "\u{F0450}"
-                tooltipText: "Refresh"
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                onClicked: twingate.refreshAll()
-              }
-
-              PanelActionButton {
-                visible: twingate.adminUrl !== "" && twingate.browserInstalled
-                iconText: "\u{F059F}"
-                tooltipText: "Open the Twingate admin console"
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                onClicked: twingate.openUrl(twingate.adminUrl)
-              }
-
-              PanelActionButton {
-                iconText: "\u{F06E}"
-                tooltipText: twingate.showHidden ? "Hide hidden resources" : "Show hidden resources"
-                foreground: twingate.showHidden ? root.foreground : root.dim
-                fontFamily: root.fontFamily
-                onClicked: root.toggleHidden()
-              }
-            }
-
-            PanelActionButton {
-              anchors.right: parent.right
-              // Clear of the Flickable's scroll bar, which overlays this edge
-              // and would otherwise swallow the press.
-              anchors.rightMargin: Style.space(14)
-              anchors.verticalCenter: footerActions.verticalCenter
-              iconText: "\u{F06B0}"
-              tooltipText: "Check for updates"
-              foreground: root.dim
-              fontFamily: root.fontFamily
-              onClicked: twingate.checkUpdate(true)
-            }
-          }
         }
       }
     }
@@ -823,7 +838,6 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: noticeInner.implicitHeight + Style.spacing.lg
-    onHasCursorChanged: if (hasCursor) root.cursorItem = notice
 
     Row {
       id: noticeInner
